@@ -10,8 +10,10 @@
 /**
     Constructor
 */
-MG811::MG811(uint8_t input = A0){
+MG811::MG811(uint8_t v_res = 5, uint16_t adc_bit = 8, uint8_t input = A0){
     _input = input;
+    _adc_bit = int(pow(2, adc_bit) - 1);
+    _v_res = v_res;
     _V400 = 4.535;  // init value - must be calibrated
     _V40000 = 3.206; // init value - must be calibrated
 }
@@ -46,7 +48,7 @@ float MG811::raw(){
         delay(20); // 20ms
     }
     buffer /= i; // compute the mean
-    return map(buffer, 0, 1023, 0, 5);
+    return map(buffer, 0, _adc_bit, 0, _v_res);
 }
 
 /**

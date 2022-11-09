@@ -1,31 +1,30 @@
-#include <max6675.h>
-#include <MQUnifiedsensor.h>
-#include <MG811.h>
+#include "MAX6675.h"
+#include "MQUnifiedsensor.h"
+#include "MG811.h"
 
-#include <lorawan.h>
-
-#include <SPI.h>
+#include "lorawan.h"
 
 #define CALIB_PIN -1 // GPIO ESP32
 
 // CO2 sensor params
-#define CO2_SENS_PIN 33 // GPIO ESP32
+#define CO2_SENS_PIN 39 // GPIO ESP32
 
 #define v400 4.535
 #define v40000 3.206
 
 // Thermocouple sensor params
-#define MAX6675_CS 15
-#define MAX6675_MISO 0
-#define MAX6675_SCLK 5
+#define MAX6675_CS 5
+#define MAX6675_MISO 17
+#define MAX6675_SCLK 16
+// use software SPI, the hardware SPI is already allocated for LoRa
 
 // CO sensor params
-#define BOARD "Arduino"
-#define CO_SENS_PIN 35
+#define BOARD "ESP32"
+#define CO_SENS_PIN 37
 
 #define TYPE "MQ-9"
-#define VOLT_RESO 3.3
-#define ADC_BIT_RESO 12
+#define V_RES 3.3
+#define ADC_BIT 12
 #define RATIO_MQ9_CLEAN 9.6
 #define MQ9_R0 2.1
 
@@ -57,18 +56,16 @@ const sRFM_pins RFM_pins = {
   .DIO1 = RFM_DIO1,
 };
 //---------------------------------------
-
-MG811 CO2_sens(CO2_SENS_PIN);
-MQUnifiedsensor CO_sens(BOARD, VOLT_RESO, ADC_BIT_RESO, CO_SENS_PIN, TYPE);
-MAX6675 thermocouple(MAX6675_SCLK, MAX6675_CS, MAX6675_MISO);
+MAX6675 thermocouple;
+MG811 CO2_sens(V_RES, ADC_BIT, CO2_SENS_PIN);
+MQUnifiedsensor CO_sens(BOARD, V_RES, ADC_BIT, CO_SENS_PIN, TYPE);
 
 int calib_counter;
 
 void MQ9_calibration() {
   Serial.print("MQ9 calibration started");
   float calcR0 = 0;
-  for(int i = 1; i<=10; i ++)
-  {
+  for(int i = 1; i<=10; i ++) {
     CO_sens.update(); // Update data, the arduino will be read the voltage on the analog pin
     calcR0 += CO_sens.calibrate(RATIO_MQ9_CLEAN);
     Serial.print(".");
@@ -85,6 +82,9 @@ void setup() {
   Serial.begin(57600);
 
   pinMode(RFM_ENABLE, HIGH);
+
+  thermocouple.begin(MAX6675_SCLK, MAX6675_CS, MAX6675_MISO);
+  thermocouple.setSPIspeed(4000000);
 
   CO2_sens.begin(v400, v40000);
   pinMode(CALIB_PIN, INPUT);
@@ -135,30 +135,28 @@ void setup() {
   delay(500); // wait sensors to stabilize
 }
 
-float CO2_val, CO_val, temp_val;
-char sendData[];
+//char sendData[];
 
 void loop() {
+  static float CO2_val, CO_val, temp_val;
+
   // Get CO2 data
   CO2_val = CO2_sens.read();
   
-
   // Get CO data
   CO_sens.update();
   CO_val = CO_sens.readSensor();
   
-
   // Get temperature data
-  temp_val = thermocouple.readCelsius();
+  temp_val = thermocouple.getTemperature();
   
 
   // Pack data
-  sprintf(sendData, "%d,%d,%d", int(CO2_val*100), int(CO_val*100), int(temp_val*100));
+  //sprintf(sendData, "%f/%f/%f", CO2_val, CO_val, temp_val);
   
   // Send with LoRa
-  lora.sendUplink(sendData, strlen(sendData), 1);
+  //lora.sendUplink(sendData, strlen(sendData), 1);
 
-  /*
   // print CO2 into serial
   Serial.print("CO2 Concentration: ");
   Serial.print(CO2_val);
@@ -174,6 +172,7 @@ void loop() {
   Serial.print(temp_val);
   Serial.println("°C");
 
+  /*
   // print sent data into serial
   Serial.println(sendData);
   
@@ -187,8 +186,8 @@ void loop() {
 
   dijadiin comment karena kayaknya ada masalah antara serial port ESP32 Aurora
   ke PC sama port SPI. Tapi belum dites. 
-  */
 
   lora.update();
+  */
   delay(2000);
 }
