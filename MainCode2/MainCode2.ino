@@ -1,26 +1,22 @@
-#include "MAX6675.h"
+#include "max6675.h"
 #include "MQUnifiedsensor.h"
 #include "MG811.h"
-
 #include "lorawan.h"
 
 #define CALIB_PIN -1 // GPIO ESP32
 
 // CO2 sensor params
-#define CO2_SENS_PIN 39 // GPIO ESP32
-
-#define v400 4.535
-#define v40000 3.206
+#define CO2_SENS_PIN 37 // GPIO ESP32
 
 // Thermocouple sensor params
-#define MAX6675_CS 5
-#define MAX6675_MISO 17
-#define MAX6675_SCLK 16
+#define MAX6675_CS 27
+#define MAX6675_MISO 12
+#define MAX6675_SCLK 14
 // use software SPI, the hardware SPI is already allocated for LoRa
 
 // CO sensor params
 #define BOARD "ESP32"
-#define CO_SENS_PIN 37
+#define CO_SENS_PIN 39
 
 #define TYPE "MQ-9"
 #define V_RES 3.3
@@ -49,6 +45,7 @@ const char *appSKey = "307F9A1909726A248F0FC6B2EB0DED38";
 
 int port, channel, freq;
 
+
 const sRFM_pins RFM_pins = {
   .CS = RFM_CS,
   .RST = RFM_RST,
@@ -56,7 +53,7 @@ const sRFM_pins RFM_pins = {
   .DIO1 = RFM_DIO1,
 };
 //---------------------------------------
-MAX6675 thermocouple;
+MAX6675 thermocouple(MAX6675_SCLK, MAX6675_CS, MAX6675_MISO);
 MG811 CO2_sens(V_RES, ADC_BIT, CO2_SENS_PIN);
 MQUnifiedsensor CO_sens(BOARD, V_RES, ADC_BIT, CO_SENS_PIN, TYPE);
 
@@ -79,14 +76,11 @@ void MQ9_calibration() {
 }
 
 void setup() {
-  Serial.begin(57600);
+  Serial.begin(115200);
 
-  pinMode(RFM_ENABLE, HIGH);
+  digitalWrite(RFM_ENABLE, HIGH);
 
-  thermocouple.begin(MAX6675_SCLK, MAX6675_CS, MAX6675_MISO);
-  thermocouple.setSPIspeed(4000000);
-
-  CO2_sens.begin(v400, v40000);
+  /*
   pinMode(CALIB_PIN, INPUT);
 
   // Enter calibration mode
@@ -94,6 +88,7 @@ void setup() {
     calib_counter++;
     delay(1000);
   }
+  */
 
   CO_sens.setRegressionMethod(1);
   CO_sens.setA(1000.5); 
@@ -101,10 +96,14 @@ void setup() {
   CO_sens.setR0(MQ9_R0);
   CO_sens.init();
 
+  CO2_sens.init();
+
+  /*
   if(calib_counter == 3) {
     CO2_sens.calibrate();
     MQ9_calibration();
   }
+  */
 
   while(!lora.init()) {
     Serial.println("RFM95 not detected!");
@@ -139,6 +138,7 @@ void setup() {
 
 void loop() {
   static float CO2_val, CO_val, temp_val;
+  static int status;
 
   // Get CO2 data
   CO2_val = CO2_sens.read();
@@ -148,7 +148,7 @@ void loop() {
   CO_val = CO_sens.readSensor();
   
   // Get temperature data
-  temp_val = thermocouple.getTemperature();
+  temp_val = thermocouple.readCelsius();
   
 
   // Pack data
@@ -169,7 +169,7 @@ void loop() {
 
   // print temperature into serial
   Serial.print("Temperature: ");
-  Serial.print(temp_val);
+  Serial.print(status);
   Serial.println("°C");
 
   /*
@@ -189,5 +189,6 @@ void loop() {
 
   lora.update();
   */
-  delay(2000);
+
+  delay(1000);
 }
